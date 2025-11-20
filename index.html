@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>离线密码生成器 • 离线 & 加密历史</title>
+  <style>
+    :root{
+      --bg:#f5f7fb;
+      --card:#ffffff;
+      --muted:#6b7280;
+      --accent:#2563eb;
+      --accent-600:#1e40af;
+      --danger:#dc2626;
+      --success:#16a34a;
+      --glass: rgba(255,255,255,0.6);
+      --radius:12px;
+      --shadow: 0 6px 18px rgba(20,30,50,0.08);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Segoe UI Mono", monospace;
+      --ui-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans CJK", "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:var(--ui-sans); background:
+      linear-gradient(180deg, #eef2ff 0%, #f8fafc 50%), var(--bg);
+      color:#0f172a; padding:20px;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      line-height:1.35;
+    }
+    .wrap{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 420px;gap:20px;align-items:start}
+    @media (max-width:980px){ .wrap{grid-template-columns:1fr; padding:8px} }
+
+    header{
+      grid-column:1 / -1; display:flex; align-items:center; gap:12px; margin-bottom:6px;
+    }
+    .logo {
+      width:44px; height:44px; border-radius:10px; background:
+      linear-gradient(135deg,var(--accent),var(--accent-600)); display:flex;align-items:center;justify-content:center; color:white; font-weight:700;
+      box-shadow: 0 6px 18px rgba(37,99,235,0.18);
+      flex:0 0 44px;
+    }
+    h1{font-size:18px;margin:0}
+    .subtitle{color:var(--muted);font-size:13px;margin-top:2px}
+
+    /* left column - main card */
+    .card{background:var(--card); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow);}
+    .panel { margin-bottom:16px; }
+    label{display:block;font-weight:600;font-size:13px;margin-bottom:6px}
+    input[type="text"], input[type="password"], input[type="number"], textarea, select {
+      width:100%; padding:10px 12px; border-radius:8px; border:1px solid #e6eef8; background:#fff; font-size:14px;
+    }
+    .row { display:flex; gap:10px; }
+    .row .col { flex:1; }
+
+    .controls { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .btn {
+      background:var(--accent); color:white; border:none; padding:9px 12px; border-radius:8px; cursor:pointer; font-weight:600;
+      box-shadow: 0 6px 12px rgba(37,99,235,0.12);
+    }
+    .btn.secondary { background:transparent; color:var(--accent-600); border:1px solid rgba(30,64,175,0.08); box-shadow:none; }
+    .btn.ghost { background:transparent; color:var(--muted); border:1px solid #eef2ff; }
+    .btn.danger { background:var(--danger); box-shadow:none; }
+    .small { font-size:12px; color:var(--muted); }
+
+    .options { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+    .option { display:flex; gap:6px; align-items:center; font-size:13px; color:var(--muted) }
+    .special-input { font-family:var(--mono); }
+
+    /* result row */
+    .result-row { display:flex; gap:10px; align-items:center; margin-top:8px; }
+    .result-box { flex:1; padding:10px 12px; border-radius:8px; background:#0f172a; color:#fff; font-weight:700; letter-spacing:0.6px; }
+    .icon-btn { background:transparent; border:1px solid rgba(0,0,0,0.06); padding:8px; border-radius:8px; cursor:pointer; }
+
+    /* right column - history card */
+    .right { position:relative; }
+    .search-row { display:flex; gap:8px; margin-bottom:12px; }
+    .history-list { max-height:560px; overflow:auto; padding-right:6px; }
+    .record { background:linear-gradient(180deg, #fff, #fbfdff); border-radius:10px; padding:10px; border:1px solid #eef4ff; margin-bottom:10px; }
+    .record .meta { color:var(--muted); font-size:12px; margin-bottom:6px; display:flex; justify-content:space-between; gap:8px; align-items:center; }
+    .record .pw { font-family:var(--mono); background:#0b1222; color:#dbeafe; padding:6px 8px; border-radius:6px; display:inline-block; }
+    .record .actions { display:flex; gap:6px; margin-top:8px; }
+
+    .muted { color:var(--muted); font-size:13px; }
+
+    footer { grid-column:1 / -1; margin-top:14px; color:var(--muted); font-size:13px; text-align:center }
+
+    .top-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .pill { background:#f1f5f9; padding:6px 10px; border-radius:999px; font-size:13px; color:var(--muted); border:1px solid #eef2ff; }
+
+    /* toast */
+    .toast { position:fixed; right:20px; bottom:20px; background:rgba(15,23,42,0.95); color:#fff; padding:10px 14px; border-radius:10px; box-shadow:0 6px 18px rgba(2,6,23,0.4); display:none; z-index:9999; }
+
+    /* tiny helpers */
+    .flex { display:flex; gap:8px; align-items:center; }
+    .muted-plate { background:#fbfdff; padding:8px;border-radius:8px;border:1px dashed #eef6ff;color:var(--muted); font-size:13px }
+    .kbd { background:#eef2ff; padding:2px 6px; border-radius:6px; font-size:12px; color:var(--accent-600); border:1px solid rgba(30,64,175,0.06) }
+
+    /* mobile tweaks */
+    @media (max-width:520px){
+      .result-box{ font-size:13px; word-break:break-all }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">PG</div>
+      <div>
+        <h1>离线密码生成器</h1>
+        <div class="subtitle">基于主密码的确定性生成 • 本地 AES-GCM 加密历史 • 离线可用</div>
+      </div>
+      <div style="margin-left:auto" class="top-actions">
+        <div class="pill">离线运行</div>
+        <div class="pill">哈希链溯源</div>
+      </div>
+    </header>
+
+    <main class="card">
+      <div class="panel">
+        <label>主密码（Master Password） <span class="small">用于派生与解密历史</span></label>
+        <div class="row">
+          <input id="masterPwd" type="password" placeholder="输入主密码（用于派生 & 解密历史）" />
+          <button id="unlockBtn" class="btn secondary">解锁历史</button>
+          <button id="lockBtn" class="btn ghost">锁定</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <label>生成信息（按顺序组合）</label>
+        <input id="siteField" type="text" placeholder="关键词/站点（例如：gmail）" />
+        <div style="height:8px"></div>
+        <input id="extraField" type="text" placeholder="个人信息/备注（可选）" />
+        <div class="row" style="margin-top:10px">
+          <div class="col">
+            <label>版本 / 计数器</label>
+            <input id="versionField" type="text" value="1" />
+          </div>
+          <div style="width:130px">
+            <label>密码长度</label>
+            <input id="lengthField" type="number" min="4" max="128" value="16" />
+          </div>
+        </div>
+        <div style="margin-top:10px"></div>
+
+        <label>字符集选项</label>
+        <div class="options">
+          <label class="option"><input id="lower" type="checkbox" checked /> 小写</label>
+          <label class="option"><input id="upper" type="checkbox" checked /> 大写</label>
+          <label class="option"><input id="digits" type="checkbox" checked /> 数字</label>
+          <label class="option"><input id="special" type="checkbox" checked /> 特殊</label>
+          <input id="specialChars" class="special-input" style="width:220px" type="text" value="!@#$%^&*()-_=+[]{};:,.<>/?"/>
+        </div>
+
+        <label style="margin-top:10px">PBKDF2 迭代次数 <span class="small">（设备越慢建议越低，默认 100000）</span></label>
+        <input id="iters" type="number" min="1000" max="1000000" value="100000" />
+
+        <div class="controls">
+          <button id="generateBtn" class="btn">生成并保存</button>
+          <button id="generateOnlyBtn" class="btn secondary">仅生成</button>
+          <button id="copyBtn" class="btn ghost">复制结果</button>
+          <button id="exportBtn" class="btn secondary">导出备份</button>
+          <button id="importBtn" class="btn ghost">导入备份</button>
+        </div>
+
+        <div style="margin-top:12px">
+          <label>生成结果</label>
+          <div class="result-row">
+            <div id="resultField" class="result-box" aria-live="polite">（结果会显示在此）</div>
+            <button id="toggleShow" title="切换显示/隐藏密码" class="icon-btn">显示</button>
+          </div>
+          <div class="small muted">相同的“主密码 + 生成信息 + 参数 + 版本”会生成相同密码（确定性）。</div>
+        </div>
+      </div>
+
+      <div class="panel muted-plate">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>注意</strong>：主密码请妥善保管，丢失将无法解密历史或再现密码。</div>
+          <div><span class="kbd">本地加密</span></div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="right">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div>
+            <label>历史记录</label>
+            <div class="small muted">（需解锁查看；历史已加密存储）</div>
+          </div>
+          <div style="text-align:right">
+            <button id="clearBtn" class="btn ghost danger">清除历史</button>
+          </div>
+        </div>
+
+        <div class="search-row">
+          <input id="searchField" type="text" placeholder="按站点或备注搜索" />
+          <button id="verifyBtn" class="btn secondary">验证链</button>
+        </div>
+
+        <div class="history-list" id="historyList">
+          <div class="muted">尚未解锁历史或历史为空。</div>
+        </div>
+
+        <div style="margin-top:12px; display:flex; gap:8px; justify-content:space-between; align-items:center">
+          <div id="verifyResult" class="small muted"></div>
+          <div class="small muted">条目会以加密形式保存在浏览器 localStorage</div>
+        </div>
+      </div>
+    </aside>
+
+    <footer>你可以保存此文件并离线使用 · 需要打包为 APK 我可以给你 Capacitor 的步骤</footer>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+<script>
+/* 美化版 • 功能与之前相同（密码生成、历史加密、哈希链） */
+/* 保持所有功能离线运行，避免外部依赖。 */
+
+(async ()=>{
+
+// ---------- 工具 ----------
+const utf8 = s => new TextEncoder().encode(s||'');
+const txt = s => new TextDecoder().decode(s);
+const buf2hex = buf => Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+const buf2base64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const base642buf = b64 => Uint8Array.from(atob(b64), c=>c.charCodeAt(0));
+const rndBytes = (n) => { let a = new Uint8Array(n); crypto.getRandomValues(a); return a; };
+const nowISO = ()=> (new Date()).toISOString();
+const uid = ()=> 'id-' + Date.now().toString(36) + '-' + Math.floor(Math.random()*1e9).toString(36);
+
+function showToast(msg, timeout=2200){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>{ t.style.display='none'; }, timeout);
+}
+
+// SHA-256 hex
+async function sha256Hex(textOrBuf){
+  let buf = (typeof textOrBuf === 'string') ? utf8(textOrBuf) : textOrBuf;
+  const digest = await crypto.subtle.digest('SHA-256', buf);
+  return buf2hex(digest);
+}
+
+// PBKDF2 -> deriveBits
+async function pbkdf2Bits(password, saltBytes, iterations, bits){
+  const pwKey = await crypto.subtle.importKey('raw', utf8(password), {name:'PBKDF2'}, false, ['deriveBits','deriveKey']);
+  const derived = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: saltBytes, iterations: iterations, hash: 'SHA-256' },
+    pwKey,
+    bits
+  );
+  return new Uint8Array(derived);
+}
+
+// derive AES key for history
+async function deriveAesKey(password, saltBytes, iterations){
+  const pwKey = await crypto.subtle.importKey('raw', utf8(password), {name:'PBKDF2'}, false, ['deriveBits','deriveKey']);
+  const aesKey = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: saltBytes, iterations: iterations, hash: 'SHA-256' },
+    pwKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt','decrypt']
+  );
+  return aesKey;
+}
+
+// AES-GCM helpers
+async function aesGcmEncrypt(aesKey, plainBuf){
+  const iv = rndBytes(12);
+  const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv: iv }, aesKey, plainBuf);
+  return { iv: buf2base64(iv), data: buf2base64(ct) };
+}
+async function aesGcmDecrypt(aesKey, ivBase64, dataBase64){
+  const iv = base642buf(ivBase64);
+  const ct = base642buf(dataBase64);
+  const plain = await crypto.subtle.decrypt({ name:'AES-GCM', iv: iv }, aesKey, ct);
+  return new Uint8Array(plain);
+}
+
+// bytes -> password via rejection sampling
+function bytesToPassword(byteArr, charset, length){
+  const N = charset.length;
+  const out = [];
+  const maxAccept = 256 - (256 % N);
+  let i = 0;
+  while(out.length < length){
+    if(i >= byteArr.length) throw new Error('字节流不足，请增加派生位数');
+    const v = byteArr[i++];
+    if(v < maxAccept){
+      out.push(charset[v % N]);
+    }
+  }
+  return out.join('');
+}
+
+function buildCharset(opts){
+  const lower = 'abcdefghijklmnopqrstuvwxyz';
+  const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const digits = '0123456789';
+  const special = opts.specialChars || '!@#$%^&*()-_=+[]{};:,.<>/?';
+  let s = '';
+  if(opts.lower) s += lower;
+  if(opts.upper) s += upper;
+  if(opts.digits) s += digits;
+  if(opts.special) s += special;
+  if(s.length===0) s = lower + digits;
+  s = Array.from(new Set(s.split(''))).join('');
+  return s;
+}
+
+// localStorage keys
+const META_KEY = 'pwgen_history_meta';
+const ENC_KEY = 'pwgen_history_enc';
+
+function loadMeta(){ try{ const raw=localStorage.getItem(META_KEY); return raw?JSON.parse(raw):null }catch(e){return null} }
+function saveMeta(meta){ localStorage.setItem(META_KEY, JSON.stringify(meta)); }
+function clearStorage(){ localStorage.removeItem(META_KEY); localStorage.removeItem(ENC_KEY); }
+
+// encrypt & save history
+async function saveEncryptedHistory(aesKey, historyArray){
+  const plainJson = JSON.stringify(historyArray);
+  const enc = await aesGcmEncrypt(aesKey, utf8(plainJson));
+  const stored = { iv: enc.iv, data: enc.data };
+  localStorage.setItem(ENC_KEY, JSON.stringify(stored));
+}
+
+// load & decrypt history
+async function loadEncryptedHistory(aesKey){
+  const raw = localStorage.getItem(ENC_KEY);
+  if(!raw) return [];
+  try{
+    const obj = JSON.parse(raw);
+    const plainBuf = await aesGcmDecrypt(aesKey, obj.iv, obj.data);
+    const text = new TextDecoder().decode(plainBuf);
+    const arr = JSON.parse(text);
+    return arr || [];
+  }catch(e){
+    throw new Error('解密历史失败');
+  }
+}
+
+let inMemoryAesKey = null;
+let lastHistoryPlain = null;
+
+async function tryUnlockHistory(masterPwd){
+  let meta = loadMeta();
+  if(!meta){
+    const salt = rndBytes(16);
+    meta = { salt: buf2base64(salt), iterations: 150000 };
+    saveMeta(meta);
+  }
+  const saltBytes = base642buf(meta.salt);
+  try {
+    const aesKey = await deriveAesKey(masterPwd, saltBytes, meta.iterations);
+    const hist = await loadEncryptedHistory(aesKey);
+    inMemoryAesKey = aesKey;
+    lastHistoryPlain = hist;
+    return { success:true, history: hist };
+  } catch(e){
+    inMemoryAesKey = null; lastHistoryPlain = null;
+    return { success:false, message: e.message || '解密失败' };
+  }
+}
+
+function lockHistoryInMemory(){
+  inMemoryAesKey = null; lastHistoryPlain = null;
+}
+
+// generation
+async function generateDeterministicPassword(masterPwd, contextString, length, charset, iterations){
+  const neededBytes = Math.ceil(length * 2.5); // 预留更多字节以减少重新派生概率
+  const bits = neededBytes * 8;
+  const saltBytes = utf8(contextString);
+  const bytes = await pbkdf2Bits(masterPwd, saltBytes, iterations, bits);
+  const pass = bytesToPassword(bytes, charset, length);
+  return pass;
+}
+
+// add record
+async function addHistoryRecord(masterPwd, inputsObj, params, passwordText){
+  if(!inMemoryAesKey) throw new Error('历史未解锁，请先解锁历史以保存记录');
+  const hist = lastHistoryPlain || [];
+  const timestamp = nowISO();
+  const inputsCompact = { site: inputsObj.site||'', extra: inputsObj.extra||'', version: inputsObj.version||'', params: params };
+  const inputsHash = await sha256Hex(JSON.stringify(inputsCompact));
+  const resultDigest = await sha256Hex(passwordText);
+  const prevHash = (hist.length>0)?(hist[hist.length-1].recordHash||'') : '';
+  const recordHash = await sha256Hex(prevHash + '|' + timestamp + '|' + inputsHash + '|' + resultDigest);
+  const rec = {
+    id: uid(),
+    timestamp,
+    inputs: inputsCompact,
+    inputsHash,
+    resultDigest,
+    prevHash,
+    recordHash,
+    password: passwordText
+  };
+  hist.push(rec);
+  await saveEncryptedHistory(inMemoryAesKey, hist);
+  lastHistoryPlain = hist;
+  return rec;
+}
+
+async function verifyHistoryChain(histArray){
+  let ok = true; let msgs = [];
+  for(let i=0;i<histArray.length;i++){
+    const r = histArray[i];
+    const inputsHash = await sha256Hex(JSON.stringify(r.inputs));
+    if(inputsHash !== r.inputsHash){ ok=false; msgs.push(`记录 ${i} inputsHash 不匹配`); }
+    const resultDigest = r.resultDigest;
+    const prevHash = (i===0)?'':(histArray[i-1].recordHash||'');
+    const recomputed = await sha256Hex(prevHash + '|' + r.timestamp + '|' + r.inputsHash + '|' + resultDigest);
+    if(recomputed !== r.recordHash){ ok=false; msgs.push(`记录 ${i} recordHash 不匹配`); }
+  }
+  return { ok, msgs };
+}
+
+// ---------- DOM ----------
+const masterPwdEl = document.getElementById('masterPwd');
+const unlockBtn = document.getElementById('unlockBtn');
+const lockBtn = document.getElementById('lockBtn');
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const clearBtn = document.getElementById('clearBtn');
+const generateBtn = document.getElementById('generateBtn');
+const generateOnlyBtn = document.getElementById('generateOnlyBtn');
+const copyBtn = document.getElementById('copyBtn');
+const toggleShow = document.getElementById('toggleShow');
+const resultField = document.getElementById('resultField');
+
+const siteField = document.getElementById('siteField');
+const extraField = document.getElementById('extraField');
+const versionField = document.getElementById('versionField');
+const lengthField = document.getElementById('lengthField');
+const lowerCheck = document.getElementById('lower');
+const upperCheck = document.getElementById('upper');
+const digitsCheck = document.getElementById('digits');
+const specialCheck = document.getElementById('special');
+const specialCharsField = document.getElementById('specialChars');
+const itersField = document.getElementById('iters');
+
+const historyList = document.getElementById('historyList');
+const verifyResult = document.getElementById('verifyResult');
+const searchField = document.getElementById('searchField');
+const verifyBtn = document.getElementById('verifyBtn');
+
+const importFileEl = document.createElement('input');
+importFileEl.type='file'; importFileEl.accept='.json'; importFileEl.style.display='none';
+document.body.appendChild(importFileEl);
+
+// initial UI state
+(function initUI(){
+  resultField.textContent = '（结果会显示在此）';
+})();
+
+// unlock / lock
+unlockBtn.addEventListener('click', async ()=>{
+  const mpw = masterPwdEl.value || '';
+  if(!mpw){ alert('请输入主密码以解锁历史'); return; }
+  unlockBtn.disabled = true; unlockBtn.textContent = '解锁中...';
+  try{
+    const res = await tryUnlockHistory(mpw);
+    if(res.success){
+      renderHistory();
+      showToast('历史已解锁（刷新页面将清除内存密钥）');
+    }else{
+      alert('解锁失败：' + (res.message || '密钥不正确'));
+    }
+  }catch(e){ alert('解锁错误：' + e.message); }
+  finally{ unlockBtn.disabled=false; unlockBtn.textContent='解锁历史'; }
+});
+lockBtn.addEventListener('click', ()=>{
+  lockHistoryInMemory();
+  historyList.innerHTML = '<div class="muted">历史已锁定（内存中密钥已清除）</div>';
+  verifyResult.textContent = '';
+  showToast('已锁定历史');
+});
+
+// export & import
+exportBtn.addEventListener('click', async ()=>{
+  const meta = loadMeta();
+  const encRaw = localStorage.getItem(ENC_KEY);
+  if(!meta || !encRaw){ alert('没有历史可导出'); return; }
+  const payload = { meta, enc: JSON.parse(encRaw) };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='pwgen_history_backup.json'; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  showToast('已导出加密备份');
+});
+
+importBtn.addEventListener('click', ()=> importFileEl.click());
+importFileEl.addEventListener('change', async (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  try{
+    const text = await f.text();
+    const obj = JSON.parse(text);
+    if(!obj.meta || !obj.enc) return alert('文件格式不正确');
+    saveMeta(obj.meta); localStorage.setItem(ENC_KEY, JSON.stringify(obj.enc));
+    showToast('已导入备份（请使用主密码解锁历史）');
+  }catch(e){ alert('导入失败：' + e.message); }
+});
+
+// clear history
+clearBtn.addEventListener('click', async ()=>{
+  if(!confirm('确定要永久删除本地历史吗？此操作无法恢复。')) return;
+  clearStorage(); lockHistoryInMemory(); historyList.innerHTML = '<div class="muted">已删除本地历史。</div>'; verifyResult.textContent=''; showToast('本地历史已删除');
+});
+
+// generate
+generateBtn.addEventListener('click', ()=> handleGenerate(true));
+generateOnlyBtn.addEventListener('click', ()=> handleGenerate(false));
+copyBtn.addEventListener('click', ()=>{
+  const val = resultField.textContent || '';
+  if(!val || val.includes('（结果')) return showToast('无可复制内容');
+  navigator.clipboard.writeText(val).then(()=>showToast('已复制到剪贴板'), ()=>alert('复制失败'));
+});
+toggleShow.addEventListener('click', ()=>{
+  if(toggleShow.textContent === '显示'){ toggleShow.textContent='隐藏'; resultField.style.filter='none'; }
+  else { toggleShow.textContent='显示'; resultField.style.filter='blur(6px)'; }
+});
+
+// search and verify
+searchField.addEventListener('input', ()=> renderHistory());
+verifyBtn.addEventListener('click', async ()=>{
+  if(!lastHistoryPlain || lastHistoryPlain.length===0){ showToast('无历史可验证'); return; }
+  const res = await verifyHistoryChain(lastHistoryPlain);
+  if(res.ok){ verifyResult.textContent='历史链验证通过（无篡改迹象）'; verifyResult.style.color = 'var(--success)'; showToast('验证通过') }
+  else { verifyResult.textContent='历史链验证失败：'+res.msgs.join('; '); verifyResult.style.color='var(--danger)'; alert('历史链验证失败，请检查历史或备份') }
+});
+
+// handle generate logic
+async function handleGenerate(save){
+  const master = masterPwdEl.value || '';
+  if(!master){ alert('请输入主密码（用于生成与/或解密历史）'); return; }
+  const site = siteField.value.trim();
+  const extra = extraField.value.trim();
+  const version = versionField.value.trim();
+  const len = Math.max(4, Math.min(128, parseInt(lengthField.value) || 16));
+  const iterations = Math.max(1000, parseInt(itersField.value) || 100000);
+  const opts = {
+    lower: lowerCheck.checked,
+    upper: upperCheck.checked,
+    digits: digitsCheck.checked,
+    special: specialCheck.checked,
+    specialChars: specialCharsField.value || '!@#$%^&*()-_=+[]{};:,.<>/?'
+  };
+  const charset = buildCharset(opts);
+  const context = `site:${site}||extra:${extra}||version:${version}||opts:${JSON.stringify({len,charsetLength:charset.length,iterations})}`;
+  try {
+    resultField.style.filter = 'none';
+    const pass = await generateDeterministicPassword(master, context, len, charset, iterations);
+    resultField.textContent = pass;
+    toggleShow.textContent = '隐藏';
+    showToast(save ? '已生成（并将保存历史）' : '已生成（未保存）');
+    if(save){
+      if(!inMemoryAesKey){
+        const res = await tryUnlockHistory(master);
+        if(!res.success){
+          if(!confirm('历史未解锁或主密码不匹配。要继续保存记录吗？（保存需要解锁历史以加密保存）')) return;
+        }
+      }
+      const rec = await addHistoryRecord(master, {site,extra,version}, {len,opts,iterations}, pass);
+      renderHistory();
+      showToast('已保存历史');
+    }
+  } catch(e){
+    alert('生成失败：' + e.message);
+  }
+}
+
+// render history list
+function renderHistory(){
+  historyList.innerHTML = '';
+  verifyResult.textContent = '';
+  if(!lastHistoryPlain || lastHistoryPlain.length===0){
+    historyList.innerHTML = '<div class="muted">暂无历史记录（或尚未解锁）</div>'; return;
+  }
+  const q = (searchField.value||'').trim().toLowerCase();
+  const arr = lastHistoryPlain.slice().reverse();
+  let shown=0;
+  for(const r of arr){
+    if(q){
+      const m = (r.inputs.site||'') + ' ' + (r.inputs.extra||'') + ' ' + (r.inputs.version||'');
+      if(!m.toLowerCase().includes(q)) continue;
+    }
+    shown++;
+    const d = document.createElement('div'); d.className='record';
+    d.innerHTML = `
+      <div class="meta">
+        <div><strong style="font-size:13px">${escapeHtml(r.inputs.site || '(无)')}</strong> <span class="muted"> ${escapeHtml(r.inputs.extra||'')}</span></div>
+        <div class="muted">${escapeHtml(r.timestamp)}</div>
+      </div>
+      <div><span class="muted">规则：</span>长度 ${r.inputs.params.len} ，字符集 ${ (r.inputs.params.opts && buildCharset(r.inputs.params.opts).length) || '?' }</div>
+      <div style="margin-top:8px"><span class="muted">密码：</span> <span class="pw" data-id="${r.id}">${escapeHtml(r.password)}</span></div>
+      <div class="actions">
+        <button class="btn ghost copy-record" data-id="${r.id}">复制</button>
+        <button class="btn secondary export-record" data-id="${r.id}">导出</button>
+        <button class="btn danger delete-record" data-id="${r.id}">删除</button>
+      </div>
+      <div style="margin-top:8px" class="small muted">recordHash: ${r.recordHash}</div>
+    `;
+    historyList.appendChild(d);
+  }
+  if(shown===0) historyList.innerHTML = '<div class="muted">无匹配项</div>';
+
+  // attach listeners
+  Array.from(historyList.getElementsByClassName('copy-record')).forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-id');
+      const rec = lastHistoryPlain.find(x=>x.id===id);
+      if(!rec) return showToast('未找到记录');
+      navigator.clipboard.writeText(rec.password).then(()=>showToast('已复制'), ()=>alert('复制失败'));
+    });
+  });
+  Array.from(historyList.getElementsByClassName('delete-record')).forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(!confirm('确认删除该历史记录？')) return;
+      const id = btn.getAttribute('data-id');
+      const idx = lastHistoryPlain.findIndex(x=>x.id===id);
+      if(idx===-1) return showToast('未找到记录');
+      lastHistoryPlain.splice(idx,1);
+      // re-compute recordHash chain to keep integrity? (we'll keep existing chain but prevHash will reflect removal)
+      // Simpler：重新计算链以保证连贯性
+      for(let i=0;i<lastHistoryPlain.length;i++){
+        const r = lastHistoryPlain[i];
+        const prevHash = (i===0)?'':(lastHistoryPlain[i-1].recordHash||'');
+        // recompute recordHash using existing timestamp/inputs/resultDigest
+        // Note: this keeps timestamps/results unchanged, but chain updates.
+        // recompute:
+        /* eslint-disable no-await-in-loop */
+        (async ()=>{
+          r.recordHash = await sha256Hex(prevHash + '|' + r.timestamp + '|' + r.inputsHash + '|' + r.resultDigest);
+          // after finishing all recalcs we will save.
+        })();
+      }
+      // wait briefly to ensure recompute tasks done (cheap)
+      setTimeout(async ()=>{
+        try{
+          await saveEncryptedHistory(inMemoryAesKey, lastHistoryPlain);
+          renderHistory();
+          showToast('记录已删除');
+        }catch(e){ alert('删除失败：' + e.message); }
+      }, 250);
+    });
+  });
+  Array.from(historyList.getElementsByClassName('export-record')).forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-id');
+      const rec = lastHistoryPlain.find(x=>x.id===id);
+      if(!rec) return showToast('未找到记录');
+      const payload = { record: rec, meta: loadMeta() };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download=`pwgen_record_${rec.id}.json`; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      showToast('已导出单条记录');
+    });
+  });
+}
+
+// escape
+function escapeHtml(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// initial load: show placeholder if no meta
+(function initial(){
+  const meta = loadMeta();
+  if(meta){
+    // show hint in history area
+    historyList.innerHTML = '<div class="muted">检测到本地加密历史，输入主密码后点击“解锁历史”以查看。</div>';
+  } else {
+    historyList.innerHTML = '<div class="muted">尚无历史（首次保存时会生成本地加密存储）</div>';
+  }
+})();
+
+})(); // IIFE end
+</script>
+</body>
+</html>
